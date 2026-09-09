@@ -401,6 +401,8 @@ Every message MUST carry all fields listed below.
 
 Sent by a paired server to drop its own pairing record from the client. Valid at any time regardless of the current `activities`. No payload fields.
 
+The server also removes its corresponding pairing record.
+
 Client behavior:
 
 - Remove the matched pairing record, send [`client/goodbye`](#client--server-clientgoodbye) reason `'unpaired'`, and close the connection.
