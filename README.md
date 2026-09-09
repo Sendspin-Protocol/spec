@@ -732,7 +732,7 @@ This specification defines three pairing methods. Servers must implement all thr
 2. **Dynamic Pairing Code** - pairing with a per-session [Pairing Code](#definitions) that the client derives from a commit-and-reveal binding to the Noise handshake and emits via an out-channel (display, speaker, etc.) for the operator to enter into the server. See [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow).
 3. **Static Pairing Code** - pairing with a fixed [Pairing Code](#definitions). Appropriate for devices with no out-channel; vulnerable to MITM if the pairing code is disclosed. See [Static Pairing Code Flow](#static-pairing-code-flow).
 
-A code-based pairing runs over a Sentinel-keyed connection: the channel is unauthenticated until the [PAKE](#pake) round completes. The round establishes trust from scratch and produces a new [long-term PSK](#definitions).
+A code-based pairing runs over a Sentinel-keyed connection: the channel is unauthenticated until a [PAKE](#pake) round completes. The round establishes trust from scratch and produces a new [long-term PSK](#definitions).
 
 The client reveals the new long-term PSK only after `server_kc` verifies, and only as `wrapped_psk` [sealed under the CPace output](#wrapping): a peer that cannot complete the PAKE - wrong pairing code, or a man in the middle relaying between two handshakes, whose differing `h` gives each leg a different `sid` - neither triggers the reveal nor can unwrap it.
 
@@ -760,7 +760,7 @@ The same `server/activate` can also end a pairing attempt without finalizing: se
 
 After leaving pairing, a server silently discards pairing messages still in flight from the client - messages sent before the client observed the leave `server/activate`. A client that has aborted an attempt likewise silently discards pairing messages received before the next `server/activate`.
 
-A server MAY send such a cancelling `server/activate` at any point during a pairing attempt. On receipt the client abandons the attempt, discarding all pairing state, and proceeds under the declared activities; an abandoned attempt does not count against a [pairing window](#pairing-window), and counts as a [failed attempt](#failed-attempts) only when the code was already being emitted. A server cancelling on operator action SHOULD first send [`pair/abort`](#client--server-pairabort) with reason `user_cancelled`, so the client can surface why the attempt ended. Servers SHOULD apply their own timeout while waiting for the attempt's first pairing message - [`client/pair-init`](#client--server-clientpair-init) or, in the Pairing PSK Flow, [`client/pair-finalize`](#client--server-clientpair-finalize) - cancelling as above on expiry.
+A server MAY send such a cancelling `server/activate` at any point during a pairing attempt. On receipt the client abandons the attempt, discarding all pairing state, and proceeds under the declared activities; an abandoned attempt does not count against a [pairing window](#pairing-window), and counts toward the [round limit](#rounds) only when the code was already being emitted. A server cancelling on operator action SHOULD first send [`pair/abort`](#client--server-pairabort) with reason `user_cancelled`, so the client can surface why the attempt ended. Servers SHOULD apply their own timeout while waiting for the attempt's first pairing message - [`client/pair-init`](#client--server-clientpair-init) or, in the Pairing PSK Flow, [`client/pair-finalize`](#client--server-clientpair-finalize) - cancelling as above on expiry.
 
 ### Unpaired Access
 
@@ -819,7 +819,7 @@ SP:0AAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYP6BYPC4PSOLZXH5DU6V97M5XXO
 
 ### Dynamic Pairing Code Flow
 
-Pairing with a per-session pairing code derived from the Noise handshake and emitted by the client via its out-channel, in one of two **emission formats** (the activation's [`format`](#server--client-serveractivate)): `digits` - a decimal code the operator types into the server - or `qr_code` - a code rendered as a QR code that the operator scans into the server. Either way, a [PAKE](#pake) round authenticates both sides. An attempt may be [held back](#failed-attempts) before it starts.
+Pairing with a per-session pairing code derived from the Noise handshake and emitted by the client via its out-channel, in one of two **emission formats** (the activation's [`format`](#server--client-serveractivate)): `digits` - a decimal code the operator types into the server - or `qr_code` - a code rendered as a QR code that the operator scans into the server. Either way, a [PAKE](#pake) round authenticates both sides. An attempt may be [held back](#rounds) before it starts.
 
 ```mermaid
 sequenceDiagram
@@ -840,13 +840,18 @@ sequenceDiagram
     opt digits attempt, speaker client
         Server->>Client: digit audio clip (binary), one per digit 0-9
     end
-    Server->>Client: server/pair-init (nonce_A)
-    Note over Client: Derive pairing code from (h, nonce_A, nonce_B), emit via out-channel
-    Note over Server: Operator enters pairing code
-    Server->>Client: server/pair-auth (pake_msg_1)
-    Client->>Server: client/pair-auth (pake_msg_2)
-    Server->>Client: server/pair-confirm (server_kc)
-    Note over Client: Verify server_kc
+    loop until server_kc verifies
+        Server->>Client: server/pair-init (nonce_A only in the first round)
+        Note over Client: Derive pairing code from (h, nonce_A, nonce_B) in the first round, emit via out-channel
+        Note over Server: Operator enters pairing code
+        Server->>Client: server/pair-auth (pake_msg_1)
+        Client->>Server: client/pair-auth (pake_msg_2)
+        Server->>Client: server/pair-confirm (server_kc)
+        Note over Client: Verify server_kc
+        opt server_kc fails
+            Client->>Server: client/pair-retry
+        end
+    end
     Client->>Server: client/pair-confirm (client_kc, wrapped_nonce_B)
     Note over Server: Verify client_kc, commit opening, and pairing code binding
     Note over Client: Sent back-to-back, no server response awaited
@@ -857,7 +862,7 @@ sequenceDiagram
 
 **Binding values.** The Dynamic Pairing Code Flow introduces three values across two messages that bind the pairing code to the underlying Noise handshake:
 
-- `nonce_A` - 32 bytes drawn from a [CSPRNG](#definitions) by the server, sent in [`server/pair-init`](#server--client-serverpair-init), base64url-encoded (43 chars).
+- `nonce_A` - 32 bytes drawn from a [CSPRNG](#definitions) by the server, sent in the first round's [`server/pair-init`](#server--client-serverpair-init), base64url-encoded (43 chars).
 - `nonce_B` - 32 bytes drawn from a [CSPRNG](#definitions) by the client, kept private until [`client/pair-confirm`](#client--server-clientpair-confirm) reveals it as `wrapped_nonce_B`, [sealed under the CPace output](#wrapping).
 - `commit_B` - `SHA-256("sendspin-pair-commit-v1" || nonce_B)`, sent by the client in [`client/pair-init`](#client--server-clientpair-init) before any value from the server is known (32 bytes base64url-encoded, 43 chars). Locks the client's contribution to the pairing code derivation.
 
@@ -875,7 +880,7 @@ The hash input is the UTF-8 bytes of the literal label `"sendspin-pairing-code-d
 
 **Digits emission.** A client that displays the pairing code follows [Pairing Code Presentation](#pairing-code-presentation). A client that speaks it reads single digits in the [presentation groups](#pairing-code-presentation); it SHOULD leave a short gap between digits and a longer one between groups. The digits themselves come from a **digit audio pack** supplied by the server: ten mono clips, one recording of each decimal digit `0`-`9`, trimmed to the spoken digit, in a language of the server's choosing.
 
-**Digit audio pack.** A speaker client advertises the pack it wants as `digit_audio` in its [`dynamic_pairing_code` descriptor](#client--server-clienthello-pair-method-descriptor) - the format it accepts and `max_bytes`, the largest encoded pack size it accepts. Servers MUST be able to supply the pack in any such format: all three codecs, at any sample rate and bit depth. In a `digits` attempt, after [`client/pair-init`](#client--server-clientpair-init) the server delivers the clips as [digit audio clip](#server--client-digit-audio-clip-binary) messages in ascending digit order, each at most 2 seconds of audio and together at most `max_bytes` encoded. [`server/pair-init`](#server--client-serverpair-init) then completes the pack. The client emits by playing the clip for each code digit in turn. The pack is presentation-only - clips never enter the derivation or `PRS` - and is discarded when the attempt ends. The client verifies each clip as it arrives, before any is played. A clip over 2 seconds, a pack over `max_bytes`, a clip undecodable or whose embedded stream parameters contradict the client's format, or a pack still incomplete when `server/pair-init` arrives is a [protocol error](#protocol-errors).
+**Digit audio pack.** A speaker client advertises the pack it wants as `digit_audio` in its [`dynamic_pairing_code` descriptor](#client--server-clienthello-pair-method-descriptor) - the format it accepts and `max_bytes`, the largest encoded pack size it accepts. Servers MUST be able to supply the pack in any such format: all three codecs, at any sample rate and bit depth. In a `digits` attempt, after [`client/pair-init`](#client--server-clientpair-init) the server delivers the clips as [digit audio clip](#server--client-digit-audio-clip-binary) messages in ascending digit order, each at most 2 seconds of audio and together at most `max_bytes` encoded. The first [`server/pair-init`](#server--client-serverpair-init) then completes the pack. The client emits by playing the clip for each code digit in turn. The pack is presentation-only - clips never enter the derivation or `PRS` - and is discarded when the attempt ends. The client verifies each clip as it arrives, before any is played. A clip over 2 seconds, a pack over `max_bytes`, a clip undecodable or whose embedded stream parameters contradict the client's format, or a pack still incomplete when the first `server/pair-init` arrives is a [protocol error](#protocol-errors).
 
 In initial pairing the pack comes from an unauthenticated peer, which thereby chooses what the client's speaker plays. The clip constraints keep each clip short, and the peer, unable to predict the code, cannot choose which clips play or in what order, so they cannot be strung into a longer message.
 
@@ -887,7 +892,7 @@ The reference vector for `code = 0xe0 0xe1 … 0xf7`:
 SP:14DQ6FY7E4XTOP9HJ5LV6Z3PO57YPD4XT6T97N5Y
 ```
 
-**Client verification.** On receipt of [`server/pair-confirm`](#server--client-serverpair-confirm), the client verifies the CPace MCF tag `server_kc`. On failure the client sends [`pair/abort`](#client--server-pairabort) with reason `pairing_code_mismatch`.
+**Client verification.** On receipt of [`server/pair-confirm`](#server--client-serverpair-confirm), the client verifies the CPace MCF tag `server_kc`. On failure the client answers with [`client/pair-retry`](#client--server-clientpair-retry) or [`pair/abort`](#client--server-pairabort); see [Rounds](#rounds). The binding values, and so the pairing code, are unchanged across rounds: a client that displays it keeps showing it, and a client that speaks it speaks it again in each round.
 
 **Server verification.** When [`client/pair-confirm`](#client--server-clientpair-confirm) arrives, the server verifies, in this order:
 
@@ -897,9 +902,11 @@ SP:14DQ6FY7E4XTOP9HJ5LV6Z3PO57YPD4XT6T97N5Y
 
 A failed key confirmation results in [`pair/abort`](#client--server-pairabort) with reason `pairing_code_mismatch`. A `wrapped_nonce_B` that fails to decrypt, a recovered `nonce_B` that does not match `commit_B`, or an entered code that fails the binding check is a [protocol error](#protocol-errors). Any failure discards the received `wrapped_psk`. Only when all three checks pass does the server process [`client/pair-finalize`](#client--server-clientpair-finalize), [unwrapping](#wrapping) the PSK.
 
-#### Failed attempts
+#### Rounds
 
-An attempt counts as failed once the client has started emitting the code and the attempt ends without a successful verification of `server_kc`. After 20 consecutive failed attempts the client MUST hold attempts back until a deliberate, manufacturer-defined operator action. The count is not partitioned by `server_id` or source address and resets on a successful verification or on that action. A client MAY hold attempts back earlier, by a cooldown or by an operator action, including from the first attempt.
+An attempt runs **rounds** against the same pairing code. A round begins with [`server/pair-init`](#server--client-serverpair-init) and ends with the client's verification of `server_kc` from [`server/pair-confirm`](#server--client-serverpair-confirm), or with the attempt. Within it the client emits the code, the operator enters it, and a separate CPace run - fresh scalars, its own `sid` - follows. On a verified `server_kc` the client continues with [`client/pair-confirm`](#client--server-clientpair-confirm). On failure the client either sends [`client/pair-retry`](#client--server-clientpair-retry), asking for another round, or ends the attempt with [`pair/abort`](#client--server-pairabort) reason `pairing_code_mismatch`. The client SHOULD retry, and MUST abort instead at the round limit. A retry keeps the attempt, its pairing code, and its running [attempt timeout](#entering-and-leaving-pairing) in place; the server begins the next round with a new `server/pair-init`.
+
+After 20 rounds since its last verified `server_kc` - the **round limit** - the client MUST abort rather than retry and hold attempts back until a deliberate, manufacturer-defined operator action, which also resets the count. The count is not partitioned by `server_id` or source address. A client MAY hold attempts back earlier - by a cooldown or by an operator action, including from the first attempt - and MAY likewise abort rather than retry short of the limit.
 
 The limit is not an error state - the method stays offered - and while it holds an attempt back the client sends [`client/pair-pending`](#client--server-clientpair-pending), optionally saying in `message` what it waits for.
 
@@ -991,7 +998,7 @@ The code-based pairing flows use **CPACE-X25519-SHA512** as the PAKE constructio
 Sendspin instantiates CPace's inputs as follows:
 
 - `PRS` - the pairing code as a byte string: the literal decimal digits as UTF-8 (e.g., `0x31 0x32 0x33 0x34 0x35 0x36 0x37 0x38` for the pairing code `"12345678"`), or in the `qr_code` emission format the raw 24-byte code.
-- `sid` - the UTF-8 bytes `"sendspin-pair-pake-v1"` || `h` || `counter`. `h` is the Noise handshake hash (32 bytes, raw) available immediately after Noise transport mode begins; `counter` is the number of pairing [`server/activate`](#server--client-serveractivate) messages sent since the last Noise handshake, encoded as a big-endian uint32 (4 bytes).
+- `sid` - the UTF-8 bytes `"sendspin-pair-pake-v1"` || `h` || `counter` || `round`. `h` is the Noise handshake hash (32 bytes, raw) available immediately after Noise transport mode begins; `counter` is the number of pairing [`server/activate`](#server--client-serveractivate) messages sent since the last Noise handshake, encoded as a big-endian uint32 (4 bytes); `round` is the number of the [round](#rounds) within the attempt, 1 for the first - always 1 in the Static Pairing Code Flow - encoded as a big-endian uint32 (4 bytes).
 - `CI` - empty.
 - `ADa` - the UTF-8 bytes `"server"`.
 - `ADb` - the UTF-8 bytes `"client"`.
@@ -1044,7 +1051,7 @@ A server MUST ignore a key it does not recognize - leaving its value unvalidated
 
 ### Messages
 
-The pairing messages below are listed in the order they appear in the Dynamic Pairing Code Flow (the most complete sequence), except the binary [digit audio clip](#server--client-digit-audio-clip-binary), which comes last. The Static Pairing Code Flow omits the [`server/pair-init`](#server--client-serverpair-init) message and the `commit_B` / `wrapped_nonce_B` fields; the Pairing PSK Flow additionally omits all `pair-pending`, `pair-init`, `pair-auth`, and `pair-confirm` messages.
+The pairing messages below are listed in the order they appear in the Dynamic Pairing Code Flow (the most complete sequence), except the binary [digit audio clip](#server--client-digit-audio-clip-binary), which comes last. The Static Pairing Code Flow omits the [`server/pair-init`](#server--client-serverpair-init) and [`client/pair-retry`](#client--server-clientpair-retry) messages and the `commit_B` / `wrapped_nonce_B` fields; the Pairing PSK Flow additionally omits all `pair-pending`, `pair-init`, `pair-auth`, and `pair-confirm` messages.
 
 **Sequence violations.** A pairing message that is out of sequence for the selected method and current state - and not covered by the silent-discard rules in [Entering and leaving pairing](#entering-and-leaving-pairing) - is a [protocol error](#protocol-errors).
 
@@ -1052,7 +1059,7 @@ The pairing messages below are listed in the order they appear in the Dynamic Pa
 
 #### Client → Server: `client/pair-pending`
 
-Reports that the client is holding back the selected attempt: no [pairing window](#pairing-window) is open, or its [attempt limit](#failed-attempts) has not admitted it yet. Sent immediately on receiving such a pairing [`server/activate`](#server--client-serveractivate); [`client/pair-init`](#client--server-clientpair-init) follows once the client is ready. Does not start the [attempt](#entering-and-leaving-pairing) or its timeout. The server SHOULD surface the pending state and any `message` to the operator and apply its own timeout (see [Entering and leaving pairing](#entering-and-leaving-pairing)).
+Reports that the client is holding back the selected attempt: no [pairing window](#pairing-window) is open, or the [round limit](#rounds) holds it back. Sent immediately on receiving such a pairing [`server/activate`](#server--client-serveractivate); [`client/pair-init`](#client--server-clientpair-init) follows once the client is ready. Does not start the [attempt](#entering-and-leaving-pairing) or its timeout. The server SHOULD surface the pending state and any `message` to the operator and apply its own timeout (see [Entering and leaving pairing](#entering-and-leaving-pairing)).
 
 - `pairing_index`: integer - see [Pairing index](#messages)
 - `message?`: string - a short plain-text sentence for the operator, at most 200 characters, such as what to do to proceed, preferably in one of the server's [`languages`](#server--client-serverhello). It comes from an unauthenticated peer: the server shows it as text attributed to the device, truncates it to that length, and MUST NOT interpret markup or links in it
@@ -1066,11 +1073,11 @@ Starts the code-based pairing [attempt](#entering-and-leaving-pairing). Sent onc
 
 #### Server → Client: `server/pair-init`
 
-Server's nonce contribution in the [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow). Sent in response to [`client/pair-init`](#client--server-clientpair-init).
+Begins a [round](#rounds) in the [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow). In the first round it answers [`client/pair-init`](#client--server-clientpair-init) and carries the server's nonce; after [`client/pair-retry`](#client--server-clientpair-retry) it is sent without one.
 
-- `nonce_A`: string - 32 bytes drawn from a [CSPRNG](#definitions), base64url-encoded (43 chars). See [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow)
+- `nonce_A?`: string - 32 bytes drawn from a [CSPRNG](#definitions), base64url-encoded (43 chars). Present in the first round only. See [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow)
 
-In a `digits` attempt with a speaker client, this message follows the ten [digit audio clips](#server--client-digit-audio-clip-binary) and completes the pack. Upon receipt, the client derives and emits the pairing code; the operator then types or scans it into the server.
+In a `digits` attempt with a speaker client, the first round's message follows the ten [digit audio clips](#server--client-digit-audio-clip-binary) and completes the pack. On the first round's message the client derives the pairing code. On each receipt it emits the code; the operator then types or scans it into the server.
 
 #### Server → Client: `server/pair-auth`
 
@@ -1091,6 +1098,12 @@ Server's MCF tag, sent after the server has derived its CPace session key from `
 - `server_kc`: string - server's MCF tag `Ta` (64 bytes base64url-encoded, 86 chars). See [PAKE](#pake)
 
 On receipt, the client verifies `server_kc` before sending [`client/pair-confirm`](#client--server-clientpair-confirm); see [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow) / [Static Pairing Code Flow](#static-pairing-code-flow).
+
+#### Client → Server: `client/pair-retry`
+
+Asks for another [round](#rounds) of a [Dynamic Pairing Code Flow](#dynamic-pairing-code-flow) attempt. Sent in place of [`client/pair-confirm`](#client--server-clientpair-confirm) when `server_kc` fails to verify and the client admits another round.
+
+- payload: `{}`
 
 #### Client → Server: `client/pair-confirm`
 
@@ -1129,7 +1142,7 @@ Aborts a pairing attempt, started or not. With reason `concurrent_attempt` the s
 
 One clip of a [digit audio pack](#dynamic-pairing-code-flow).
 
-Sent only in a `digits` attempt with a speaker client, after [`client/pair-init`](#client--server-clientpair-init) and before [`server/pair-init`](#server--client-serverpair-init): ten messages in ascending digit order, together at most the descriptor's [`max_bytes`](#client--server-clienthello-pair-method-descriptor). A clip outside that window, out of order, duplicated, or with a digit above 9 is a [sequence violation](#messages).
+Sent only in a `digits` attempt with a speaker client, after [`client/pair-init`](#client--server-clientpair-init) and before the first [`server/pair-init`](#server--client-serverpair-init): ten messages in ascending digit order, together at most the descriptor's [`max_bytes`](#client--server-clienthello-pair-method-descriptor). A clip outside that window, out of order, duplicated, or with a digit above 9 is a [sequence violation](#messages).
 
 - Byte 0: message type `2` (uint8)
 - Byte 1: digit (uint8) - the decimal digit `0`-`9` the clip speaks
