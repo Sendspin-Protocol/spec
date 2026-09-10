@@ -390,6 +390,8 @@ Sending `stream/end` in these cases is explicitly prohibited because it signals 
 
 State update of the group this client is part of.
 
+The server MUST promptly send this message after the first `server/activate` on a connection and whenever any field listed below changes.
+
 Every message MUST carry all fields listed below.
 
 - `playback_state`: 'playing' | 'stopped' - playback state of the group
