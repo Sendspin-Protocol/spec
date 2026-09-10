@@ -555,7 +555,7 @@ Every message MUST carry `available` and the full state of each role object it i
 
 - `available`: boolean - whether the client is available to participate in Sendspin playback
   - `true` - client is operational and ready to participate in playback; for a player or source this means its clock is synchronized with the server.
-  - `false` - client's output is in use by an external system and is not currently participating in Sendspin playback with this server. See [External Source Handling](#external-source-handling)
+  - `false` - the client is in use by an external system and will not yield to Sendspin on request. See [External Source Handling](#external-source-handling)
 - `player?`: object - only if client has `player` role ([see player state object details](#client--server-clientstate-player-object))
 - `source?`: object - only if client has `source` role ([see source state object details](#client--server-clientstate-source-object))
 - `artwork?`: object - only if client has `artwork` role ([see artwork state object details](#client--server-clientstate-artwork-object))
@@ -565,19 +565,19 @@ Every message MUST carry `available` and the full state of each role object it i
 
 ### External Source Handling
 
-A client's output can be taken over by a non-Sendspin activity (playing other media, another protocol, an HDMI input, and so on). How it reports this depends on whether it will still yield its output back to Sendspin on request.
+A client can be taken over by a non-Sendspin activity (playing other media, another protocol, an HDMI input, and so on). How it reports this depends on whether it will still yield to Sendspin on request.
 
 #### Interruptible activity (client stays available)
 
-If the external activity can be interrupted by Sendspin playback at any time, the client SHOULD remain `available: true` so the server can take it over.
+If the external activity can be interrupted by Sendspin at any time, the client SHOULD remain `available: true` so the server can take it over.
 
 To stop taking part in its group's playback while performing non-Sendspin activity, a client MAY leave its current group with [`client/leave`](#client--server-clientleave). This is only needed while the group's `playback_state` is `'playing'`: a client in a stopped group keeps its grouping by staying, and later playback may still take it over.
 
 #### Non-interruptible activity (client becomes unavailable)
 
-When a client reports `available: false`, it indicates the client's output is in use by an external system (e.g., a different audio source, HDMI input, or local media playback) and will not participate in Sendspin playback with this server until it returns to `available: true`.
+When a client reports `available: false`, it indicates the client is in use by an external system (e.g., a different audio source, HDMI input, or local media playback) and will not participate in Sendspin playback with this server until it returns to `available: true`.
 
-A client SHOULD report `available: false` only while it will not yield its output to Sendspin, and SHOULD return to `available: true` as soon as it is again willing to be taken over.
+A client SHOULD report `available: false` only while it will not yield to Sendspin, and SHOULD return to `available: true` as soon as it is again willing to be taken over.
 
 #### Server behavior when a client becomes unavailable (`available: false`):
 
@@ -1305,7 +1305,7 @@ This section describes messages specific to clients with the `source` role, whic
 
 A device MAY implement both the `source` and `player` roles (e.g., a speaker with a local AUX input forwarded into Sendspin). Such a device MUST NOT play its captured input locally. Like every player, it outputs only the stream the server distributes, so its output stays in sync with the rest of the group.
 
-**Note:** The `source` role (capturing input *into* Sendspin) is distinct from a client reporting [`available: false`](#external-source-handling), which marks a client whose *output* has been taken over by a non-Sendspin system.
+**Note:** The `source` role (capturing input *into* Sendspin) is distinct from a client reporting [`available: false`](#external-source-handling), which marks a client that has been taken over by a non-Sendspin system.
 
 A source client uses the same [clock synchronization](#clock-synchronization) mechanism as all clients. It timestamps each binary source audio message in the server time domain by inverting the filter's server-to-local mapping (`t_local = compute_client_time(t_server)`): for a capture at local time `t_capture` it sends the `t_server` that maps to it. The mapping is linear in the filter's offset and drift, so this inverse is well-defined; apply both offset and drift, not offset alone.
 
