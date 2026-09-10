@@ -59,7 +59,7 @@ The TXT `name` SHOULD match the `name` the server sends in [`server/hello`](mess
 
 Unlike server-initiated connections, servers cannot reclaim clients by reconnecting. How clients handle multiple discovered servers, server selection, and switching is implementation-defined.
 
-**Note:** After this point, Sendspin works independently of how the connection was established. The Sendspin client is always the consumer of data like audio or metadata, regardless of who initiated the connection.
+**Note:** After this point, Sendspin works independently of how the connection was established.
 
 ## Encryption
 
