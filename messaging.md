@@ -305,7 +305,7 @@ When a client returns to `available: true`, the server MUST NOT auto-rejoin it t
 
 ### Client → Server: `client/command`
 
-Client sends commands to the server. Contains command objects based on the client's supported roles.
+Client sends commands to the server. Contains command objects based on the client's active roles.
 
 - `controller?`: object - only if client has `controller` role ([see controller command object details](roles/controller/v1.md#client--server-clientcommand-controller-object))
 
