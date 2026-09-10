@@ -1141,7 +1141,7 @@ Volume values (0-100) represent perceived loudness, not linear amplitude (e.g., 
 The `player@v1_support` object in [`client/hello`](#client--server-clienthello) has this structure:
 
 - `player@v1_support`: object
-  - `supported_formats`: object[] - list of supported audio formats in priority order (first is preferred)
+  - `supported_formats`: object[] - non-empty list of supported audio formats in priority order (first is preferred)
     - `codec`: 'opus' | 'flac' | 'pcm' - codec identifier
     - `channels`: integer - supported number of channels (e.g., 1 = mono, 2 = stereo)
     - `sample_rate`: integer - sample rate in Hz (e.g., 44100)
@@ -1174,8 +1174,8 @@ State updates must be sent whenever any state changes, including when the volume
   - `volume?`: integer - range 0-100, MUST be included if 'volume' is in `supported_commands`
   - `muted?`: boolean - mute state, MUST be included if 'mute' is in `supported_commands`
   - `output_delay_ms`: integer - output delay in milliseconds (0-5000)
-  - `required_lead_time_ms`: integer - minimum startup lead time in milliseconds (e.g., codec init, decode warmup, audio backend buffering, DAC latency). Measured from the server transmit time of the start/restart trigger (the `server_transmitted` field in [`stream/start`](#server--client-streamstart) or [`stream/clear`](#server--client-streamclear)) to the playback timestamp of the first audio chunk that can be played in full. The server treats this as a hint and MAY give less lead (see [Server Audio Send Constraints](#server-audio-send-constraints)).
-  - `min_buffer_ms`: integer - requested minimum ongoing buffer duration in milliseconds during playback (primarily for live streams), used to absorb network jitter and ongoing decode/playback timing variance. See [Measuring timing parameters](#client--server-clientstate-player-object).
+  - `required_lead_time_ms`: non-negative integer - minimum startup lead time in milliseconds (e.g., codec init, decode warmup, audio backend buffering, DAC latency). Measured from the server transmit time of the start/restart trigger (the `server_transmitted` field in [`stream/start`](#server--client-streamstart) or [`stream/clear`](#server--client-streamclear)) to the playback timestamp of the first audio chunk that can be played in full. The server treats this as a hint and MAY give less lead (see [Server Audio Send Constraints](#server-audio-send-constraints)).
+  - `min_buffer_ms`: non-negative integer - requested minimum ongoing buffer duration in milliseconds during playback (primarily for live streams), used to absorb network jitter and ongoing decode/playback timing variance. See [Measuring timing parameters](#client--server-clientstate-player-object).
   - `supported_commands`: string[] - subset of: 'volume', 'mute', 'set_output_delay', empty when the player accepts no commands
   - `format?`: object - the format the player currently prefers, which MUST be one of the entries in [`supported_formats`](#client--server-clienthello-playerv1-support-object). Absent means no overridden preference: the server selects per the `supported_formats` priority order
     - `codec`: 'opus' | 'flac' | 'pcm' - codec identifier
@@ -1648,8 +1648,8 @@ The requested data types, frame-rate cap, and spectrum configuration are dynamic
 The `visualizer` object in [`client/state`](#client--server-clientstate) has this structure:
 
 - `visualizer`: object
-  - `types`: string[] - visualization data types requested by the client: 'beat', 'loudness', 'f_peak', 'peak', 'spectrum'
-  - `rate_max`: integer - maximum periodic visualization frames per second per type (applies independently to `loudness`, `f_peak`, `spectrum`). Beat events are not throttled and are bounded by tempo. Clients should set this to their display refresh rate
+  - `types`: string[] - visualization data types requested by the client: 'beat', 'loudness', 'f_peak', 'peak', 'spectrum'. May be empty to request no visualization data
+  - `rate_max`: positive integer - maximum periodic visualization frames per second per type (applies independently to `loudness`, `f_peak`, `spectrum`). Beat events are not throttled and are bounded by tempo. Clients should set this to their display refresh rate
   - `spectrum?`: object - spectrum configuration, required if `types` includes 'spectrum'
     - `n_disp_bins`: integer - number of display bins (i.e. bars on a graphical equalizer)
     - `scale`: 'mel' | 'log' | 'lin' - mapping from FFT frequencies to display bins. 'mel' uses the HTK mel formula (`m = 2595 * log10(1 + f/700)`), 'log' uses base-10 logarithm of frequency, 'lin' uses linear frequency spacing
