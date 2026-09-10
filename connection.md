@@ -63,7 +63,7 @@ Unlike server-initiated connections, servers cannot reclaim clients by reconnect
 
 ## Encryption
 
-All Sendspin connections use end-to-end encryption based on the [Noise Protocol Framework](https://noiseprotocol.org/noise.html). Encryption is mandatory for all connections established through the standard discovery mechanisms described in [Establishing a Connection](#establishing-a-connection).
+All Sendspin connections use end-to-end encryption based on the [Noise Protocol Framework](https://noiseprotocol.org/noise.html).
 
 ### Pattern
 
