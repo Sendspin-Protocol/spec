@@ -617,6 +617,8 @@ Every message MUST carry the full state of each role object it includes. Omittin
 
 After a `server/activate` adds or re-adds a role that defines a `server/state` object, the server MUST promptly send a `server/state` containing that role's current state, or `null` if there is no state to provide.
 
+The server MUST promptly report state changes for active roles.
+
 The first `server/state` sent for a role on a connection, and the first after that role is re-added to `active_roles`, MUST carry a past or present `timestamp` if the role object has one, so the client is brought up to date before any scheduled update follows.
 
 A role object set to `null` clears all of that role's state, taking effect immediately and discarding any pending scheduled update.
