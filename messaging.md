@@ -11,7 +11,7 @@ Once the WebSocket connection is established, Client and Server perform an initi
 7. Client → Server: [`client/hello`](#client--server-clienthello) (encrypted)
 8. Server → Client: [`server/activate`](#server--client-serveractivate) (encrypted)
 
-No other messages should be sent before the initial [`server/activate`](#server--client-serveractivate) arrives, except possibly [`client/goodbye`](#client--server-clientgoodbye). See [Encryption](connection.md#encryption) for cryptographic details.
+No other messages should be sent before the initial [`server/activate`](#server--client-serveractivate) arrives, except possibly [`client/goodbye`](#client--server-clientgoodbye), or [`server/error`](#server--client-servererror) sent in place of `server/init`. See [Encryption](connection.md#encryption) for cryptographic details.
 
 Cleartext handshake messages (`client/init`, `server/init`, `noise/handshake`, `server/error`) are sent as WebSocket **text** frames containing JSON. After the encrypted channel is established, all messages are sent as WebSocket **binary** frames carrying Noise transport ciphertexts.
 
