@@ -840,7 +840,7 @@ sequenceDiagram
     Server->>Client: server/hello (name)
     Client->>Server: client/hello (supported_pair_methods)
     Note over Server: Operator picks dynamic pairing code
-    Server->>Client: server/activate (activities=['pairing'], active_roles=[], pairing={method: dynamic_pairing_code})
+    Server->>Client: server/activate (activities=['pairing'], active_roles=[], pairing={method: dynamic_pairing_code, format: digits|qr_code})
     opt attempt held back
         Client->>Server: client/pair-pending
         Note over Client: Cooldown elapses or operator acts
