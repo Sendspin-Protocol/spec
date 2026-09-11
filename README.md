@@ -617,7 +617,7 @@ Every message MUST carry the full state of each role object it includes. Omittin
 
 After a `server/activate` adds or re-adds a role that defines a `server/state` object, the server MUST promptly send a `server/state` containing that role's current state, or `null` if there is no state to provide.
 
-The server MUST promptly report state changes for active roles that define a `server/state` object, subject to role-specific scheduling rules. No message is required solely because an already scheduled update takes effect or playback progress advances according to previously reported values.
+The server MUST promptly report changes to active roles' `server/state` objects. Scheduled updates taking effect and playback progress advancing as reported require no new message.
 
 The first `server/state` sent for a role on a connection, and the first after that role is re-added to `active_roles`, MUST carry a past or present `timestamp` if the role object has one, so the client is brought up to date before any scheduled update follows.
 
