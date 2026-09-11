@@ -136,7 +136,11 @@ Both sides MUST hash the raw message bytes exactly as sent and received, not a r
 
 ### Failure Handling
 
-Any handshake-phase failure - malformed cleartext message, unsupported `version`, unknown `suite`, handshake timeout, a `psk_id` lookup miss without the [Sentinel Fallback](#sentinel-fallback), Noise AEAD failure, or AEAD failure once in transport mode - closes the WebSocket without sending any application-level error message. Implementations SHOULD apply a timeout (e.g., 30 seconds) for each side to receive the next expected message during the prologue and Noise-handshake phases.
+A server-side failure decided from the cleartext [`client/init`](messaging.md#client--server-clientinit) alone - an unsupported `version`, an unknown `suite`, or a message that is not valid JSON of the defined shape - is an **init failure**: the server MUST send [`server/error`](messaging.md#server--client-servererror) with the matching reason, then close the connection. The message is unauthenticated, so the reason is a hint for logging and operator display.
+
+Every other handshake-phase failure - a client-side rejection of `server/init`, a handshake timeout, a malformed inner `noise/handshake` payload, a `psk_id` lookup miss without the [Sentinel Fallback](#sentinel-fallback), Noise AEAD failure, AEAD failure once in transport mode, or a cleartext frame received after switching to transport mode - is a **silent failure**: the detecting side closes the connection without sending any further message.
+
+Implementations SHOULD apply a timeout (e.g., 30 seconds) for each side to receive the next expected message during the prologue and Noise-handshake phases.
 
 ### Re-handshake
 

@@ -276,7 +276,11 @@ Both sides MUST hash the raw message bytes exactly as sent and received, not a r
 
 ### Failure Handling
 
-Any handshake-phase failure - malformed cleartext message, unsupported `version`, unknown `suite`, handshake timeout, a `psk_id` lookup miss without the [Sentinel Fallback](#sentinel-fallback), Noise AEAD failure, or AEAD failure once in transport mode - closes the WebSocket without sending any application-level error message. Implementations SHOULD apply a timeout (e.g., 30 seconds) for each side to receive the next expected message during the prologue and Noise-handshake phases.
+A server-side failure decided from the cleartext [`client/init`](#client--server-clientinit) alone - an unsupported `version`, an unknown `suite`, or a message that is not valid JSON of the defined shape - is an **init failure**: the server MUST send [`server/error`](#server--client-servererror) with the matching reason, then close the connection. The message is unauthenticated, so the reason is a hint for logging and operator display.
+
+Every other handshake-phase failure - a client-side rejection of `server/init`, a handshake timeout, a malformed inner `noise/handshake` payload, a `psk_id` lookup miss without the [Sentinel Fallback](#sentinel-fallback), Noise AEAD failure, AEAD failure once in transport mode, or a cleartext frame received after switching to transport mode - is a **silent failure**: the detecting side closes the connection without sending any further message.
+
+Implementations SHOULD apply a timeout (e.g., 30 seconds) for each side to receive the next expected message during the prologue and Noise-handshake phases.
 
 ### Re-handshake
 
@@ -303,7 +307,7 @@ Once the WebSocket connection is established, Client and Server perform an initi
 
 No other messages should be sent before the initial [`server/activate`](#server--client-serveractivate) arrives, except possibly [`client/goodbye`](#client--server-clientgoodbye). See [Encryption](#encryption) for cryptographic details.
 
-Cleartext handshake messages (`client/init`, `server/init`, `noise/handshake`) are sent as WebSocket **text** frames containing JSON. After the encrypted channel is established, all messages are sent as WebSocket **binary** frames carrying Noise transport ciphertexts.
+Cleartext handshake messages (`client/init`, `server/init`, `noise/handshake`, `server/error`) are sent as WebSocket **text** frames containing JSON. After the encrypted channel is established, all messages are sent as WebSocket **binary** frames carrying Noise transport ciphertexts.
 
 WebSocket control frames (Ping, Pong, Close; RFC 6455) are not Sendspin messages: they remain valid at any time, are not encrypted at the Noise layer, and Ping/Pong is the expected connection-liveness mechanism.
 
@@ -444,11 +448,20 @@ The encrypted payload carried inside each Noise handshake message is a UTF-8 JSO
   - `psk_category`: 'lt' | 'pr' | 'sn' - the category the server is using the referenced PSK as: long-term, pairing, or Sentinel. A `psk_id` the client holds only under a different category is a lookup miss (see [Pre-Shared Key](#pre-shared-key)). The codes share one length, so the encrypted payload's length is independent of the category.
 - **Noise message 2 payload** (client → server): the empty object as the literal two bytes `{}` (not a zero-length Noise payload)
 
-A malformed inner handshake payload (not valid UTF-8 JSON of the shape above) is a handshake failure and closes the WebSocket (see [Failure Handling](#failure-handling)).
+A malformed inner handshake payload (not valid UTF-8 JSON of the shape above) is a [silent failure](#failure-handling) and closes the WebSocket.
 
 After both handshake messages have been exchanged, both sides switch to Noise transport mode (all subsequent messages travel as the binary Noise-ciphertext frames described above).
 
 The same `noise/handshake` message is used for the in-band [re-handshake](#re-handshake): the two messages then travel as ordinary encrypted JSON messages (binary frames, message type `0`), not bare Noise bytes. Noise message 2 is still encrypted under the pre-re-handshake transport keys; the first frame each side sends after the handshake completes uses the new keys.
+
+### Server → Client: `server/error`
+
+Sent by the server in place of [`server/init`](#server--client-serverinit) when it cannot accept the client's [`client/init`](#client--server-clientinit). The server closes the connection after sending. See [Failure Handling](#failure-handling).
+
+- `reason`: string - one of:
+  - `unsupported_version` - the client's `version` is not one the server implements
+  - `unsupported_suite` - the client's `suite` is not one the server implements
+  - `malformed` - `client/init` is not valid JSON of the defined shape
 
 ### Server → Client: `server/hello`
 
