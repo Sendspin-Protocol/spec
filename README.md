@@ -617,7 +617,7 @@ Every message MUST carry the full state of each role object it includes. Omittin
 
 After a `server/activate` adds or re-adds a role that defines a `server/state` object, the server MUST promptly send a `server/state` containing that role's current state, or `null` if there is no state to provide.
 
-The server MUST promptly report state changes for active roles.
+The server MUST promptly report state changes for active roles that define a `server/state` object, subject to role-specific scheduling rules. No message is required solely because an already scheduled update takes effect or playback progress advances according to previously reported values.
 
 The first `server/state` sent for a role on a connection, and the first after that role is re-added to `active_roles`, MUST carry a past or present `timestamp` if the role object has one, so the client is brought up to date before any scheduled update follows.
 
@@ -1512,7 +1512,7 @@ The `metadata` object in [`server/state`](#server--client-serverstate) has this 
   - `artwork_url?`: string - URL to artwork image. Useful for clients that want to forward metadata to external systems or for powerful clients that can fetch and process images themselves
   - `year?`: integer - release year in YYYY format
   - `track?`: integer - track number on the album (1-indexed), absent if unknown or not applicable
-  - `progress?`: object - playback progress information. Omitting it clears the client's position, so include it in every `metadata` state that has a position to report. The server must send a new `metadata` state whenever playback state changes (play, pause, resume, seek, playback speed change)
+  - `progress?`: object - playback progress information. Omitting it clears the client's position, so include it in every `metadata` state that has a position to report. The server MUST send a new `metadata` state whenever playback state changes (play, pause, resume, seek, playback speed change), unless the change was already conveyed by a scheduled update
     - `track_progress`: integer - playback position in milliseconds since start of track, measured at `timestamp`
     - `track_duration`: integer - total track length in milliseconds, 0 for unlimited/unknown duration (e.g., live radio streams)
     - `playback_speed`: integer - playback speed multiplier * 1000 (e.g., 1000 = normal speed, 1500 = 1.5x speed, 500 = 0.5x speed, 0 = paused)
