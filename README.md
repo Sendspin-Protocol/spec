@@ -503,12 +503,12 @@ The activity sets the server may legitimately declare are constrained by which P
 | PSK matched | Allowed activity sets |
 |---|---|
 | [long-term PSK](#definitions) | `[]` or `['playback']` |
-| [pairing PSK](#definitions) | `['pairing']` |
+| [pairing PSK](#definitions) | `[]` or `['pairing']` |
 | [Sentinel PSK](#pre-shared-key) | `[]`, `['pairing']`, `['playback']`¹ |
 
 ¹ `['playback']` on the Sentinel PSK is only allowed when the client has [unpaired access](#unpaired-access) enabled.
 
-`pairing.method` MUST be `'pairing_psk'` if and only if the matched PSK is the [pairing PSK](#definitions). It MUST also be a method present in the client's [`supported_pair_methods`](#client--server-clienthello).
+When `'pairing'` is in `activities`, `pairing.method` MUST be `'pairing_psk'` if and only if the matched PSK is the [pairing PSK](#definitions), and MUST be a method present in the client's [`supported_pair_methods`](#client--server-clienthello).
 
 **Playback-capable connections.** A connection is *playback-capable* when its `activities` extended with `'playback'` are an allowed set for the matched PSK; a connection already declaring `'playback'` is therefore playback-capable exactly when its `activities` are an allowed set. Only a playback-capable connection MAY carry a non-empty `active_roles`, and it may do so even when `'playback'` is not currently in `activities`. The client re-evaluates this constraint on every `server/activate` against the persisted `active_roles`: if a later activation changes `activities` so the connection is no longer playback-capable without explicitly sending `active_roles`, the persisted roles are treated as empty rather than the message rejected.
 
@@ -761,7 +761,7 @@ Pairing and playback are mutually exclusive on a connection. When a server moves
 
 Each pairing `server/activate` admits one **pairing attempt**, in progress from its first pairing message - [`client/pair-init`](#client--server-clientpair-init) (pairing-code methods) or [`client/pair-finalize`](#client--server-clientpair-finalize) (Pairing PSK) - until success or [`pair/abort`](#client--server-pairabort). [`client/pair-pending`](#client--server-clientpair-pending) precedes an attempt and does not start it. The client bounds each attempt with an **attempt timeout** measured from its first message (recommended 2 minutes); on expiry it sends `pair/abort` with reason `attempt_timeout`.
 
-The `server/activate` that ends the pairing transition declares the connection's resulting `activities` and reactivates roles via `active_roles`.
+The `server/activate` that ends the pairing transition declares the connection's resulting `activities` and `active_roles`.
 
 The same `server/activate` can also end a pairing attempt without finalizing: sent in place of [`server/pair-finalize`](#server--client-serverpair-finalize), it persists nothing and discards any received PSK. A client that, after sending [`client/pair-finalize`](#client--server-clientpair-finalize), receives `server/activate` likewise persists nothing.
 
