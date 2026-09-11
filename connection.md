@@ -31,7 +31,7 @@ A connection with empty `activities` ranks lowest.
 
 Clients must persistently store the `server_id` of the server that most recently held the admitted connection while `'playback'` was among its `activities` (the "last-playback server").
 
-When a new server connects, the client lets the handshake complete before applying admission; the new connection is provisional until its first [`server/activate`](messaging.md#server--client-serveractivate) declares its priority. The incoming connection's priority is compared to the current connection's: higher or equal is accepted, lower is rejected. Three exceptions:
+When a new server connects, the client lets the handshake complete before applying admission; the new connection is provisional until its first [`server/activate`](messaging.md#server--client-serveractivate) declares its priority. The client MUST NOT apply the priority rules to an activation that is not [admissible](messaging.md#server--client-serveractivate). The incoming connection's priority is compared to the current connection's: higher or equal is accepted, lower is rejected. Three exceptions:
 
 - A [pairing attempt](pairing.md#entering-and-leaving-pairing) is not displaced by an incoming `'playback'` or `'pairing'` connection.
 - When both the current holder and the incoming connection have empty `activities`, the incoming is admitted only if its `server_id` matches the last-playback server (and the existing one's does not); otherwise the existing is kept.
