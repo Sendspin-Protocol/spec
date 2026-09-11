@@ -1000,7 +1000,7 @@ The code-based pairing flows use **CPACE-X25519-SHA512** as the PAKE constructio
 Sendspin instantiates CPace's inputs as follows:
 
 - `PRS` - the pairing code as a byte string: the literal decimal digits as UTF-8 (e.g., `0x31 0x32 0x33 0x34 0x35 0x36 0x37 0x38` for the pairing code `"12345678"`), or in the `qr_code` emission format the raw 24-byte code.
-- `sid` - the UTF-8 bytes `"sendspin-pair-pake-v1"` || `h` || `counter` || `round`. `h` is the Noise handshake hash (32 bytes, raw) available immediately after Noise transport mode begins; `counter` is the number of pairing [`server/activate`](#server--client-serveractivate) messages sent since the last Noise handshake, encoded as a big-endian uint32 (4 bytes); `round` is the number of the [round](#rounds) within the attempt, 1 for the first - always 1 in the Static Pairing Code Flow - encoded as a big-endian uint32 (4 bytes).
+- `sid` - the UTF-8 bytes `"sendspin-pair-pake-v1"` || `h` || `pairing_index` || `round`. `h` is the Noise handshake hash (32 bytes, raw) available immediately after Noise transport mode begins; `pairing_index` is the number of pairing [`server/activate`](#server--client-serveractivate) messages sent since the last Noise handshake, encoded as a big-endian uint32 (4 bytes); `round` is the number of the [round](#rounds) within the attempt, 1 for the first - always 1 in the Static Pairing Code Flow - encoded as a big-endian uint32 (4 bytes).
 - `CI` - empty.
 - `ADa` - the UTF-8 bytes `"server"`.
 - `ADb` - the UTF-8 bytes `"client"`.
